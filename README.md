@@ -16,11 +16,11 @@ fgSSJoin: this repo
 
 sf-gSSJoin: this repo
 
-bitmap: this repo (coming soon)
+bitmap: this repo
 
 ## Building
 ```
-cd (gssjoin|fgssjoin|sf-gssjoin) && mkdir release && cd release
+cd (gssjoin|fgssjoin|sf-gssjoin|bitmap) && mkdir release && cd release
 #for compute capability 6.1
 CC=gcc-5 CXX=g++-5 cmake -DCMAKE_BUILD_TYPE=Release -DSM_ARCH=61 CMAKE_CXX_FLAGS=-m64 .. 
 ```
@@ -68,6 +68,17 @@ CC=gcc-5 CXX=g++-5 cmake -DCMAKE_BUILD_TYPE=Release -DSM_ARCH=61 CMAKE_CXX_FLAGS
   <aggregate>       flag if to perform an aggregation on top of the join (0 | 1)
 ```
 
+### bitmap
+
+```
+./bitmap --input <input_file> --threshold <threshold> --bitmap <bitmap>
+```
+
+```
+  <input_file>       file, each line a record
+  <threshold>       normalized threshold
+  <bitmap>          bitmap signature size (bits)
+```
 
 ## Datasets
 The datasets and the preprocess scripts can be found at http://ssjoin.dbresearch.uni-salzburg.at/datasets.html
