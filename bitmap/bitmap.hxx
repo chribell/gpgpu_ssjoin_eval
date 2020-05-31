@@ -42,33 +42,78 @@ __global__ void generateBitmaps(DeviceCollection<unsigned int> collection)
     }
 }
 
-__global__ void bitmapFilter(Block probe, Block candidate, DeviceCollection<unsigned int> collection,
-                                  DeviceArray<unsigned int> filter, unsigned int blockSize, double threshold) {
-    unsigned int startID = (blockIdx.x * blockDim.x + threadIdx.x) + probe.startID;
+__global__ void bitmapFilter(Block leftBlock,
+        Block rightBlock,
+        DeviceCollection<unsigned int> input,
+        DeviceCollection<unsigned int> foreign,
+        DeviceArray<unsigned int> filter,
+        unsigned int blockSize,
+        double threshold){
+    // starting right set
+    unsigned int startID = (blockIdx.x * blockDim.x + threadIdx.x) + rightBlock.startID;
 
-    for (int probeID = startID; probeID <= probe.endID; probeID += blockDim.x * gridDim.x) {
+    // for every right set
+    for (unsigned int rightID = startID; rightID <= rightBlock.endID; rightID += blockDim.x * gridDim.x) {
 
-        unsigned int probeSize = collection.cardinalities[probeID];
-        unsigned int probeStart = collection.offsets[probeID];
-        unsigned int probePrefix = probeStart + jaccard_maxprefix(probeSize, threshold);
-        unsigned int normalizedProbeID = probeID - probe.id * blockSize;
-        unsigned int maxsize = jaccard_maxsize(probeSize, threshold);
-        word* probeBitmap = collection.bitmapAt(probeID);
+        unsigned int rightSetSize = foreign.cardinalities[rightID];
 
-        for (unsigned int candidateID = candidate.startID; candidateID <= candidate.endID; ++candidateID) {
-            unsigned int candidateSize = collection.cardinalities[candidateID];
+        unsigned int normalizedRightID = rightID - rightBlock.id * blockSize;
+        unsigned int maxsize = jaccard_maxsize(rightSetSize, threshold);
+        word* rightBitmap = foreign.bitmapAt(rightID);
 
-            if (probeID < candidateID && maxsize >= candidateSize) {
-                unsigned int normalizedCandidateID = candidateID - candidate.id * blockSize;
-                word *candidateBitmap = collection.bitmapAt(candidateID);
+        for (unsigned int leftID = leftBlock.startID; leftID <= leftBlock.endID; ++leftID) {
+            unsigned int leftSetSize = input.cardinalities[leftID];
 
-                unsigned int popcount = countBitmapHammingDistance(probeBitmap, candidateBitmap,
-                                                                   collection.bitmapWords);
-                unsigned int jaccardEqovelarp = jaccard_minoverlap(probeSize, candidateSize,
+            if (rightID < leftID && maxsize >= leftSetSize) {
+                unsigned int normalizedLeftID = leftID - leftBlock.id * blockSize;
+                word* leftBitmap = input.bitmapAt(leftID);
+
+                unsigned int popcount = countBitmapHammingDistance(rightBitmap, leftBitmap,
+                                                                   input.bitmapWords);
+
+                unsigned int jaccardEqovelarp = jaccard_minoverlap(rightSetSize, leftSetSize,
                                                                                 threshold);
-                double upperbound = (probeSize + candidateSize - popcount) / 2.0;
+                double upperbound = (rightSetSize + leftSetSize - popcount) / 2.0;
 
-                unsigned int index = normalizedProbeID * blockSize + normalizedCandidateID;
+                unsigned int index = normalizedRightID * blockSize + normalizedLeftID;
+                if (upperbound >= jaccardEqovelarp) {
+                    filter[index] = 1;
+                }
+            }
+        }
+    }
+}
+__global__ void binaryJoinBitmapFilter(Block leftBlock,
+        Block rightBlock,
+        DeviceCollection<unsigned int> input,
+        DeviceCollection<unsigned int> foreign,
+        DeviceArray<unsigned int> filter,
+        unsigned int blockSize,
+        double threshold) {
+    unsigned int startID = (blockIdx.x * blockDim.x + threadIdx.x) + rightBlock.startID;
+    for (unsigned int rightID = startID; rightID <= rightBlock.endID; rightID += blockDim.x * gridDim.x) {
+
+        unsigned int rightSetSize = foreign.cardinalities[rightID];
+        unsigned int normalizedRightID = rightID - rightBlock.id * blockSize;
+
+        word* rightBitmap = foreign.bitmapAt(rightID);
+        unsigned int maxsize = jaccard_maxsize(rightSetSize, threshold);
+
+        for (unsigned int leftID = leftBlock.startID; leftID <= leftBlock.endID; ++leftID) {
+            unsigned int leftSetSize = input.cardinalities[leftID];
+
+            if (maxsize >= leftSetSize) {
+                unsigned int normalizedLeftID = leftID - leftBlock.id * blockSize;
+                word* leftBitmap = input.bitmapAt(leftID);
+
+                unsigned int popcount = countBitmapHammingDistance(rightBitmap, leftBitmap,
+                                                                   input.bitmapWords);
+
+                unsigned int jaccardEqovelarp = jaccard_minoverlap(rightSetSize, leftSetSize,
+                                                                   threshold);
+                double upperbound = (rightSetSize + leftSetSize - popcount) / 2.0;
+
+                unsigned int index = normalizedRightID * blockSize + normalizedLeftID;
                 if (upperbound >= jaccardEqovelarp) {
                     filter[index] = 1;
                 }

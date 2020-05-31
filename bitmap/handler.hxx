@@ -14,21 +14,27 @@ private: // members
 
     size_t _memory = 0;
     double _threshold = 0.0;
+    bool _binaryJoin = false;
     unsigned int _totalSimilars = 0;
     unsigned int _maxNumberOfEntries = 0;
 
-    Collection<T> _hostCollection;
-    DeviceCollection<T> _deviceCollection;
+    // Collections
+    Collection<T> _hostInput;
+    DeviceCollection<T> _deviceInput;
+    Collection<T> _hostForeignInput;
+    DeviceCollection<T> _deviceForeignInput;
+
     DeviceArray<unsigned int> _deviceFilter;
     DeviceArray<Pair> _devicePairs;
-    std::vector<Block> _blocks;
+    std::vector<Block> _inputBlocks;
+    std::vector<Block> _foreignInputBlocks;
     unsigned int* _deviceCount;
     unsigned int _blockSize;
 
     dim3 _grid, _threads;
 
 public:
-    Handler(double threshold) : _threshold(threshold) {
+    Handler(double threshold, bool binaryJoin) : _threshold(threshold), _binaryJoin(binaryJoin) {
         cudaDeviceProp devProp;
         cudaGetDeviceProperties(&devProp, 0);
         _grid = dim3(devProp.multiProcessorCount * 16);
@@ -37,19 +43,22 @@ public:
         cudaMemGetInfo(&_memory, &totalMem);
     };
 
-    void transferCollection(Collection<T>& collection);
+    void transferInputCollection(Collection<T>& collection);
+    void transferForeignInputCollection(Collection<T>& collection);
     void constructBitmaps(unsigned int words);
     void join();
-    void freeCollection();
+    void freeInputCollection();
+    void freeForeignInputCollection();
     DeviceTiming getDeviceTimings();
 private:
     void partitionCollectionIntoBlocks();
-    void probeBlocks();
+    void selfJoin();
+    void binaryJoin();
     void allocateFilterAndOutput();
     void clearFilter();
     void freeFilterAndOutput();
-    void callBitmapFilter(Block probe, Block candidate);
-    void processPairs(Block probe, Block candidate);
+    void callBitmapFilter(Block probe, Block candidate, bool inverse);
+    void processPairs(Block probe, Block candidate, bool inverse);
 };
 
 #endif //BITMAP_GPUSSJOIN_HANDLER_HXX

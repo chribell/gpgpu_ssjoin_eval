@@ -11,10 +11,11 @@ parameters parse(int argc, char* argv[])
         double threshold = 0.95;
         unsigned int bitmap = 64;
 
-        cxxopts::Options options(argv[0], "Brute force GPU set similarity join");
+        cxxopts::Options options(argv[0], "GPU set similarity join with bitmap filter");
 
         options.add_options()
-            ("input", "Input dataset file", cxxopts::value<std::string>())
+            ("input", "Input dataset file, each line a record", cxxopts::value<std::string>())
+            ("foreign-input", "Foreign input dataset file, each line a record", cxxopts::value<std::string>())
             ("threshold", "Similarity threshold", cxxopts::value<double>(threshold))
             ("bitmap", "Bitmap signature size", cxxopts::value<unsigned int>(bitmap))
             ("help", "Print help")
@@ -36,23 +37,29 @@ parameters parse(int argc, char* argv[])
 
         if (!result.count("input"))
         {
-            std::cout << "ERROR: No input dataset given! Exiting..." << std::endl;
+            std::cerr << "ERROR: No input dataset given! Exiting..." << std::endl;
             exit(1);
         }
 
         std::string input = result["input"].as<std::string>();
 
+        std::string foreignInput;
+
+        if (result.count("foreign-input")) {
+            foreignInput = result["foreign-input"].as<std::string>();
+        }
+
         if (result.count("bitmap")) {
             bitmap = result["bitmap"].as<unsigned int>();
         } else {
-            std::cout << "No bitmap size given, using default value: " << bitmap << std::endl;
+            std::cout << "No bitmap signature size given, using default value: " << bitmap << std::endl;
         }
 
-        return { threshold, input, bitmap };
+        return { threshold, input, foreignInput, bitmap };
 
     } catch (const cxxopts::OptionException& e)
     {
-        std::cout << "error parsing options: " << e.what() << std::endl;
+        std::cerr << "error parsing options: " << e.what() << std::endl;
         exit(1);
     }
 }

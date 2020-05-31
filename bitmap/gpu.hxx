@@ -6,9 +6,10 @@
 typedef struct {
     double threshold;
     std::string input;
+    std::string foreignInput;
     unsigned int bitmap;
 } parameters;
 
-int gpu(parameters params);
+int gpu(const parameters& params);
 
 #endif //BITMAP_GPUSSJOIN_GPU_HXX
