@@ -1,7 +1,7 @@
-#ifndef GSSJOIN_GPU_H
-#define GSSJOIN_GPU_H
+#ifndef FSSJOIN_GPU_HXX
+#define FSSJOIN_GPU_HXX
 
 int gpu(int argc, char **argv);
 
 
-#endif //GSSJOIN_GPU_H
+#endif //FSSJOIN_GPU_HXX

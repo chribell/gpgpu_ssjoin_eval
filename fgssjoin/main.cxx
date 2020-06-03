@@ -1,0 +1,71 @@
+#include "gpu.hxx"
+
+#include "cxxopts.hpp"
+#include <iostream>
+
+parameters parse(int argc, char* argv[])
+{
+    try
+    {
+        // default values
+        double threshold = 0.95;
+        unsigned int blockSize = 10000;
+
+        cxxopts::Options options(argv[0], "fgSSjoin: GPU set similarity join with prefix filter");
+
+        options.add_options()
+                ("input", "Input dataset file, each line a record", cxxopts::value<std::string>())
+                ("foreign-input", "Foreign input dataset file, each line a record", cxxopts::value<std::string>())
+                ("threshold", "Similarity threshold", cxxopts::value<double>(threshold))
+                ("block", "Block size", cxxopts::value<unsigned int>(blockSize))
+                ("help", "Print help")
+                ;
+
+        auto result = options.parse(argc, argv);
+
+        if (result.count("help"))
+        {
+            std::cout << options.help() << std::endl;
+            exit(0);
+        }
+
+        if (result.count("threshold")) {
+            threshold = result["threshold"].as<double>();
+        } else {
+            std::cout << "No threshold given, using default value: " << threshold << std::endl;
+        }
+
+        if (!result.count("input"))
+        {
+            std::cerr << "ERROR: No input dataset given! Exiting..." << std::endl;
+            exit(1);
+        }
+
+        std::string input = result["input"].as<std::string>();
+
+        std::string foreignInput;
+
+        if (result.count("foreign-input")) {
+            foreignInput = result["foreign-input"].as<std::string>();
+        }
+
+        if (result.count("block")) {
+            blockSize = result["block"].as<unsigned int>();
+        } else {
+            std::cout << "No block size given, using default value: " << blockSize << std::endl;
+        }
+
+        return { threshold, input, foreignInput, blockSize };
+
+    } catch (const cxxopts::OptionException& e)
+    {
+        std::cerr << "error parsing options: " << e.what() << std::endl;
+        exit(1);
+    }
+}
+
+int main(int argc, char* argv[])
+{
+    auto arguments = parse(argc, argv);
+    return gpu(arguments);
+}
