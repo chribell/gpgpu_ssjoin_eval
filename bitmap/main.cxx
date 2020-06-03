@@ -10,6 +10,7 @@ parameters parse(int argc, char* argv[])
         // default values
         double threshold = 0.95;
         unsigned int bitmap = 64;
+        unsigned int blockSize = 10000;
 
         cxxopts::Options options(argv[0], "GPU set similarity join with bitmap filter");
 
@@ -18,6 +19,7 @@ parameters parse(int argc, char* argv[])
             ("foreign-input", "Foreign input dataset file, each line a record", cxxopts::value<std::string>())
             ("threshold", "Similarity threshold", cxxopts::value<double>(threshold))
             ("bitmap", "Bitmap signature size", cxxopts::value<unsigned int>(bitmap))
+            ("block", "Block size", cxxopts::value<unsigned int>(blockSize))
             ("help", "Print help")
         ;
 
@@ -55,7 +57,13 @@ parameters parse(int argc, char* argv[])
             std::cout << "No bitmap signature size given, using default value: " << bitmap << std::endl;
         }
 
-        return { threshold, input, foreignInput, bitmap };
+        if (result.count("block")) {
+            blockSize = result["block"].as<unsigned int>();
+        } else {
+            std::cout << "No block size given, using default value: " << blockSize << std::endl;
+        }
+
+        return { threshold, input, foreignInput, bitmap, blockSize };
 
     } catch (const cxxopts::OptionException& e)
     {

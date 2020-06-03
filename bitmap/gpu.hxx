@@ -8,6 +8,7 @@ typedef struct {
     std::string input;
     std::string foreignInput;
     unsigned int bitmap;
+    unsigned int blockSize;
 } parameters;
 
 int gpu(const parameters& params);

@@ -116,7 +116,10 @@ void Handler<T>::partitionCollectionIntoBlocks()
 
     size_t availableMemory = _memory - inputRequiredMemory - foreignInputRequiredMemory - 100000000; // subtract another 100M for sanity
     int bytesPerCell = sizeof(Pair) + sizeof(unsigned int) * 2;
-    _blockSize = (unsigned int) std::sqrt(availableMemory / bytesPerCell);
+    unsigned int maxBlockSize = (unsigned int) std::sqrt(availableMemory / bytesPerCell);
+
+    // if the given block size is larger than the maximum supported block size, decrease it
+    if (_blockSize > maxBlockSize) _blockSize = maxBlockSize;
 
     unsigned int numberOfInputBlocks = (unsigned int)
             _deviceInput.numberOfSets / _blockSize + (_deviceInput.numberOfSets % _blockSize == 0 ? 0 : 1);
@@ -145,6 +148,9 @@ void Handler<T>::partitionCollectionIntoBlocks()
             _foreignInputBlocks.push_back(block);
         }
     }
+    std::cout << "Number of input blocks: " << _inputBlocks.size() << "\n";
+    std::cout << "Number of foreign input blocks: " << _foreignInputBlocks.size() << "\n";
+    std::cout << "Number of blocks: " << _inputBlocks.size() + _foreignInputBlocks.size() << "\n";
 }
 
 template <class T>

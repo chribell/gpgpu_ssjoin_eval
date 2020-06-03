@@ -34,7 +34,7 @@ private: // members
     dim3 _grid, _threads;
 
 public:
-    Handler(double threshold, bool binaryJoin) : _threshold(threshold), _binaryJoin(binaryJoin) {
+    Handler(double threshold, unsigned int blockSize, bool binaryJoin) : _threshold(threshold), _blockSize(blockSize), _binaryJoin(binaryJoin) {
         cudaDeviceProp devProp;
         cudaGetDeviceProperties(&devProp, 0);
         _grid = dim3(devProp.multiProcessorCount * 16);

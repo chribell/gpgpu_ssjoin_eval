@@ -27,7 +27,7 @@ int gpu(const parameters& params)
         hostTimings.finish(readForeignInput);
     }
 
-    auto handler = new Handler<unsigned int>(params.threshold, binaryJoin);
+    auto handler = new Handler<unsigned int>(params.threshold, params.blockSize, binaryJoin);
 
     handler->transferInputCollection(input);
 
