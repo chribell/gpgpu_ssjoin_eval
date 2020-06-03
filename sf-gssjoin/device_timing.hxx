@@ -1,5 +1,5 @@
-#ifndef GPU_JOIN_TIMER_HXX
-#define GPU_JOIN_TIMER_HXX
+#ifndef FSSJOIN_TIMER_HXX
+#define FSSJOIN_TIMER_HXX
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -28,4 +28,4 @@ class DeviceTiming {
 		friend std::ostream & operator<<(std::ostream& os, const DeviceTiming& timer);
 };
 
-#endif //GPU_JOIN_TIMER_HXX
+#endif //FSSJOIN_TIMER_HXX
