@@ -43,7 +43,8 @@ int gpu(const parameters& params)
         handler->freeForeignInputCollection();
     }
 
-    std::cout << hostTimings << std::endl;
-    std::cout << handler->getDeviceTimings() << std::endl;
+    std::cout << handler->getResult() << "," << handler->getDeviceTotalTime() / 1000;
+//    std::cout << hostTimings << std::endl;
+//    std::cout << handler->getDeviceTimings() << std::endl;
     return 0;
 }
