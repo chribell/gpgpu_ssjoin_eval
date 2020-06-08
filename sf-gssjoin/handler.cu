@@ -59,6 +59,20 @@ DeviceTiming  Handler<T>::getDeviceTimings()
 }
 
 template <class T>
+float  Handler<T>::getDeviceTotalTime()
+{
+    gpuAssert(cudaDeviceSynchronize());
+    return _deviceTimings.total();
+}
+
+template <class T>
+unsigned int Handler<T>::getResult()
+{
+    gpuAssert(cudaDeviceSynchronize());
+    return _totalSimilars;
+}
+
+template <class T>
 void Handler<T>::initInvertedIndex()
 {
     DeviceTiming::EventPair* initIndex = _deviceTimings.add("Allocate inverted index device memory", 0);
@@ -156,9 +170,9 @@ void Handler<T>::partitionCollectionsIntoBlocks()
         }
     }
 
-    std::cout << "Number of input blocks: " << _inputBlocks.size() << "\n";
-    std::cout << "Number of foreign input blocks: " << _foreignInputBlocks.size() << "\n";
-    std::cout << "Number of blocks: " << _inputBlocks.size() + _foreignInputBlocks.size() << "\n";
+//    std::cout << "Number of input blocks: " << _inputBlocks.size() << "\n";
+//    std::cout << "Number of foreign input blocks: " << _foreignInputBlocks.size() << "\n";
+//    std::cout << "Number of blocks: " << _inputBlocks.size() + _foreignInputBlocks.size() << "\n";
 }
 
 template <class T>
@@ -195,8 +209,8 @@ void Handler<T>::selfJoin()
             }
         }
     }
-    std::cout << "Total block probes: " << totalProbes << std::endl;
-    std::cout << "Total similars: " << _totalSimilars << std::endl;
+//    std::cout << "Total block probes: " << totalProbes << std::endl;
+//    std::cout << "Total similars: " << _totalSimilars << std::endl;
 }
 
 template <class T>
@@ -231,8 +245,8 @@ void Handler<T>::binaryJoin()
             }
         }
     }
-    std::cout << "Total block probes: " << totalProbes << std::endl;
-    std::cout << "Total similars: " << _totalSimilars << std::endl;
+//    std::cout << "Total block probes: " << totalProbes << std::endl;
+//    std::cout << "Total similars: " << _totalSimilars << std::endl;
 }
 
 

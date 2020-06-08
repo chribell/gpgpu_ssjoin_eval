@@ -53,6 +53,8 @@ public:
     void freeInputCollection();
     void freeForeignInputCollection();
     DeviceTiming getDeviceTimings();
+    float getDeviceTotalTime();
+    unsigned int getResult();
 private:
     void initInvertedIndex();
     void makeInvertedIndex(Block block);
