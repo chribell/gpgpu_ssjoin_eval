@@ -31,6 +31,17 @@ float DeviceTiming::sum(std::string const &argName) const {
 	return total;
 }
 
+float DeviceTiming::total() const {
+	float total = 0.0;
+	std::vector<EventPair*>::const_iterator it = pairs.begin();
+	for(; it != pairs.end(); ++it) {
+        float millis = 0.0;
+        cudaEventElapsedTime(&millis, (*it)->start, (*it)->end);
+        total += millis;
+	}
+	return total;
+}
+
 DeviceTiming::~DeviceTiming() {
 	std::vector<EventPair*>::iterator it = pairs.begin();
 	for(; it != pairs.end(); ++it) {
