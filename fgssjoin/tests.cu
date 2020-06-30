@@ -75,7 +75,7 @@ void print_intersection(int *intersection, int block_size, int indexed, int prob
 void print_result(Pair *pairs, int size) {
 	printf("\n============ Similarity Join Result ============\n");
 	for (int i = 0; i < size; i++) {
-		printf("[%d, %d]:%.3f  ", pairs[i].set_x, pairs[i].set_y, pairs[i].similarity);
+		printf("[%d, %d] ", pairs[i].set_x, pairs[i].set_y);
 	}
 	printf("\n================================================\n");
 }

@@ -46,12 +46,14 @@ __host__ int findSimilars(InvertedIndex index, double threshold, struct DeviceVa
 	Entry *probes = dev_vars->d_entries;
 	Entry *indexed = dev_vars->d_entries;
 	Pair *pairs = dev_vars->d_pairs;
-	int intersection_size = block_size*block_size; // TODO verificar tamanho quando blocos são menores q os blocos normais
-	int *totalSimilars = (int *)malloc(sizeof(int));
+	int intersection_size = block_size*block_size;
+	unsigned int* hostSimilars = new unsigned int;
+	unsigned int *similars = dev_vars->d_similars;
 
 	DeviceTiming::EventPair* clearspace = deviceTiming.add("Clear intersection space", 0);
 	// the last position of intersection is used to store the number of similar pairs
-	cudaMemset(intersection, 0, sizeof(int) * (intersection_size + 1));
+	cudaMemset(intersection, 0, sizeof(int) * (intersection_size));
+	cudaMemset(similars, 0, sizeof(unsigned int));
 	deviceTiming.finish(clearspace);
 
 	DeviceTiming::EventPair* genCans = deviceTiming.add("Generate candidates", 0);
@@ -62,16 +64,16 @@ __host__ int findSimilars(InvertedIndex index, double threshold, struct DeviceVa
 	DeviceTiming::EventPair* verifyPairs = deviceTiming.add("Verify pairs", 0);
 	verifyCandidates<<<grid, threads>>>(intersection, pairs, probes, indexed,
 			 sizes, starts, probes_offset, indexed_offset, probes_start, indexed_start,
-			 probe_block_size, indexed_block_size, intersection_size, intersection + intersection_size, threshold, block_size);
+			 probe_block_size, indexed_block_size, intersection_size, threshold, block_size, similars);
 	deviceTiming.finish(verifyPairs);
 
 	DeviceTiming::EventPair* transferPairs = deviceTiming.add("Transfer pairs", 0);
-	gpuAssert(cudaMemcpy(totalSimilars, intersection + intersection_size, sizeof(int), cudaMemcpyDeviceToHost));
+	gpuAssert(cudaMemcpy(hostSimilars, similars, sizeof(unsigned int), cudaMemcpyDeviceToHost));
 	if(!aggregate)
-		gpuAssert(cudaMemcpy(similar_pairs, pairs, sizeof(Pair)*totalSimilars[0], cudaMemcpyDeviceToHost));
+		gpuAssert(cudaMemcpy(similar_pairs, pairs, sizeof(Pair) * (*hostSimilars), cudaMemcpyDeviceToHost));
 	deviceTiming.finish(transferPairs);
 
-	return totalSimilars[0];
+	return *hostSimilars;
 }
 
 __global__ void generateCandidates(InvertedIndex index, int *intersection, Entry *probes, int *set_starts,
@@ -103,8 +105,8 @@ __global__ void generateCandidates(InvertedIndex index, int *intersection, Entry
 
 __global__ void verifyCandidates(int *intersection, Pair *pairs, Entry *probes, Entry *indexed_sets,
 		int *sizes, int *starts, int probes_offset, int indexed_offset, int probes_start,
-		int indexed_start, int probe_block_size, int indexed_block_size, int intersection_size, int *totalSimilars,
-		double threshold, int block_size) {
+		int indexed_start, int probe_block_size, int indexed_block_size, int intersection_size,
+		double threshold, int block_size, unsigned int* similars) {
 
 	int i = blockIdx.x*blockDim.x + threadIdx.x;
 
@@ -120,7 +122,7 @@ __global__ void verifyCandidates(int *intersection, Pair *pairs, Entry *probes, 
             unsigned int indexedSetSize = sizes[y];
 
             unsigned int minoverlap = Jaccard::minoverlap(probeSetSize, indexedSetSize, threshold);
-            unsigned int overlap = intersection[i], m = 0, n = 0;
+            unsigned int overlap = intersection[i];
 
             //First position after last position by index lookup in indexed record
             unsigned int lastposind = Jaccard::midprefix(indexedSetSize, threshold);
@@ -146,10 +148,7 @@ __global__ void verifyCandidates(int *intersection, Pair *pairs, Entry *probes, 
             unsigned int maxr1 = probeSetSize - recpos + overlap;
             unsigned int maxr2 = indexedSetSize - indrecpos + overlap;
 
-            unsigned int steps = 0;
-
             while(maxr1 >= minoverlap && maxr2 >= minoverlap && overlap < minoverlap) {
-                steps++;
                 if(probeSet[recpos].term_id == indexedSet[indrecpos].term_id) {
                     ++recpos;
                     ++indrecpos;
@@ -166,11 +165,10 @@ __global__ void verifyCandidates(int *intersection, Pair *pairs, Entry *probes, 
             }
 
 			if (overlap >= minoverlap) {
-				int pos = atomicAdd(totalSimilars, 1);
+				unsigned int pos = atomicAdd(similars, 1);
 
-				pairs[pos].set_x = x;
+                pairs[pos].set_x = x;
 				pairs[pos].set_y = y;
-				pairs[pos].similarity = (float) overlap/(sizes[x] + sizes[y] - overlap);
 			}
 		}
 	}

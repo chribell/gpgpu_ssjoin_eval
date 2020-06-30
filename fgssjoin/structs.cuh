@@ -34,10 +34,10 @@ struct Entry {
 struct Pair {
 	int set_x;
 	int set_y;
-	float similarity;
 };
 
 struct DeviceVariables{
+    unsigned int* d_similars;
 	int *d_sizes, *d_starts, *d_intersection, *d_index, *d_count, *d_positionX, *d_positionY;
     Entry *d_inverted_index, *d_entriesmid, *d_entries;
     Pair *d_pairs;

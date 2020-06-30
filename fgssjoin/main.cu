@@ -223,8 +223,9 @@ void allocVariables(DeviceVariables *dev_vars, Pair **similar_pairs, int num_ter
 	gpuAssert(cudaMalloc(&dev_vars->d_count, num_terms * sizeof(int)));
 
 	// Variables used to perform the similarity join
+	gpuAssert(cudaMalloc(&dev_vars->d_similars, sizeof(unsigned int)));
 	gpuAssert(cudaMalloc(&dev_vars->d_entries, entries_size * sizeof(Entry)));
-	gpuAssert(cudaMalloc(&dev_vars->d_intersection, (1 + block_size * block_size) * sizeof(int)));
+	gpuAssert(cudaMalloc(&dev_vars->d_intersection, (block_size * block_size) * sizeof(int)));
 	gpuAssert(cudaMalloc(&dev_vars->d_pairs, block_size * block_size * sizeof(Pair)));
 	gpuAssert(cudaMalloc(&dev_vars->d_sizes, num_sets * sizeof(int)));
 	gpuAssert(cudaMalloc(&dev_vars->d_starts, num_sets * sizeof(int)));
