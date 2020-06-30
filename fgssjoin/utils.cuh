@@ -53,11 +53,11 @@ void __gpuAssert(cudaError_t stat, int line, string file);
 
 //__device__ float atomicAdd(float* address, float val);
 
-int get_midprefix(int size, float threshold);
+int get_midprefix(int size, double threshold);
 
-int get_maxprefix(int size, float threshold);
+int get_maxprefix(int size, double threshold);
 
-int max_size_jaccard(int size, float threshold);
+int max_size_jaccard(int size, double threshold);
 
 #define gpuAssert(value)  __gpuAssert((value),(__LINE__),(__FILE__))
 

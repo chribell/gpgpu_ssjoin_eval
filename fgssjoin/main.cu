@@ -42,6 +42,7 @@
 #include "simjoin.cuh"
 #include "tests.cu"
 #include "device_timing.hxx"
+#include "similarity.hxx"
 
 
 #define OUTPUT 1
@@ -49,7 +50,7 @@
 using namespace std;
 
 
-FileStats readInputFile(string &filename, vector<Entry> &entries, vector<Entry> &entriesmid, float threshold);
+FileStats readInputFile(string &filename, vector<Entry> &entries, vector<Entry> &entriesmid, double threshold);
 void allocVariables(DeviceVariables *dev_vars, Pair **similar_pairs, int num_terms, int block_size, int entries_size, int entriesmid_size, int num_sets);
 void freeVariables(DeviceVariables *dev_vars, Pair **similar_pairs);
 void write_output(Pair *similar_pairs, int totalSimilars, stringstream &outputfile);
@@ -65,7 +66,7 @@ int gpu(int argc, char **argv) {
 	}
     DeviceTiming deviceTiming;
 	vector<Entry> entries, entriesmid;
-	float threshold = atof(argv[2]);
+	double threshold = atof(argv[2]);
     bool aggregate = atoi(argv[6]) == 1;
 	int gpuNum;
 
@@ -115,41 +116,43 @@ int gpu(int argc, char **argv) {
 		gpuAssert(cudaMemcpy(dev_vars.d_entries, &entries[0], entries.size() * sizeof(Entry), cudaMemcpyHostToDevice));
 
 		for (int i = gpuid; i < block_num; i+= gpuNum) {
-			int entries_block_start = i*block_size;
+			int entries_block_start = i * block_size;
 			int entries_offset = stats.startmid[entries_block_start];
 			int last_set = entries_block_start + block_size >= stats.num_sets? stats.num_sets - 1: entries_block_start + block_size - 1;
 			int entries_block_size = last_set - entries_block_start + 1;
-			int entries_size = stats.startmid[last_set] + get_midprefix(stats.sizes[last_set], threshold) - entries_offset;
-			//printf("=========Indexed Block %d=========\nset_offset = %d\nentrie_offset: %d\nlast_set: %d\nentries_size: %d\n", i, entries_block_start, entries_offset, last_set, entries_size);
+			int entries_size = stats.startmid[last_set] + Jaccard::midprefix(stats.sizes[last_set], threshold) - entries_offset;
+//			printf("=========Indexed Block %d=========\nset_offset = %d\nentrie_offset: %d\nlast_set: %d\nentries_size: %d\n", i, entries_block_start, entries_offset, last_set, entries_size);
 
 			// build the inverted index for block i of size block_size
 			index = make_inverted_index(stats.num_sets, stats.num_terms, entries_size, entries_offset, entriesmid, &dev_vars);
 
 			int indexed_offset = stats.start[entries_block_start];
 
-			for (int j = 0; j <= i; j++) { // calculate similarity between indexed sets and probe sets
-				int probe_block_start = j*block_size;
+			for (int j = 0; j < block_num; j++) { // calculate similarity between indexed sets and probe sets
+				if (j < i) continue;
+
+			    int probe_block_start = j*block_size;
 				int last_probe = probe_block_start + block_size > stats.num_sets? stats.num_sets - 1: probe_block_start + block_size - 1;
 				int probe_block_size = last_probe - probe_block_start + 1;
 				int probes_offset = stats.start[probe_block_start];
 
-				// size filtering
-				if (stats.sizes[last_probe] < threshold * stats.sizes[entries_block_start])
-					continue;
+				if (stats.sizes[last_set] >= Jaccard::minsize(stats.sizes[probe_block_start], threshold)) {
+//                    printf("=========Probe Block %d=========\nprobe_block_start = %d\nprobe_offset: %d\nlast_probe: %d\nprobe_block_size: %d\n===============================\n", j, probe_block_start, probes_offset,last_probe, probe_block_size);
+                    int totalSimilars = findSimilars(index, threshold, &dev_vars, similar_pairs, probe_block_start,
+                                                     probe_block_size, probes_offset, entries_block_start, entries_block_size, indexed_offset, block_size, aggregate, deviceTiming);
+                    finalResult += totalSimilars;
 
-				//printf("=========Probe Block %d=========\nprobe_block_start = %d\nprobe_offset: %d\nlast_probe: %d\nprobe_block_size: %d\n===============================\n", j, probe_block_start, probes_offset,last_probe, probe_block_size);
-				int totalSimilars = findSimilars(index, threshold, &dev_vars, similar_pairs, probe_block_start,
-						probe_block_size, probes_offset, entries_block_start, entries_block_size, indexed_offset, block_size, aggregate, deviceTiming);
-				finalResult += totalSimilars;
-				probes++;
-				//print_intersection(dev_vars.d_intersection, block_size, i, j); //print_result(similar_pairs, totalSimilars);
-				if (!aggregate) write_output(similar_pairs, totalSimilars, *outputString[gpuid]);
+                    probes++;
+
+                    if (!aggregate) write_output(similar_pairs, totalSimilars, *outputString[gpuid]);
+				}
 			}
 		}
 
 		freeVariables(&dev_vars, &similar_pairs);
 	}
 
+    printf("Probes: %d\n", probes);
 	double end = gettime();
 
 	if (!aggregate) {
@@ -167,7 +170,7 @@ int gpu(int argc, char **argv) {
 	return 0;
 }
 
-FileStats readInputFile(string &filename, vector<Entry> &entries, vector<Entry> &entriesmid, float threshold) {
+FileStats readInputFile(string &filename, vector<Entry> &entries, vector<Entry> &entriesmid, double threshold) {
 	ifstream input(filename.c_str());
 	string line;
 
@@ -187,7 +190,7 @@ FileStats readInputFile(string &filename, vector<Entry> &entries, vector<Entry> 
 		stats.start.push_back(accumulatedsize);
 		accumulatedsize += size;
 
-		int midprefix = get_midprefix(size, threshold);
+		int midprefix = Jaccard::midprefix(size, threshold);
 		stats.startmid.push_back(accsizemid);
 		accsizemid += midprefix;
 
@@ -246,6 +249,6 @@ void freeVariables(DeviceVariables *dev_vars, Pair **similar_pairs) {
 
 void write_output(Pair *similar_pairs, int totalSimilars, stringstream &outputfile) {
 	for (int i = 0; i < totalSimilars; i++) {
-		outputfile << "(" << similar_pairs[i].set_x << ", " << similar_pairs[i].set_y << "): " << similar_pairs[i].similarity << endl;
+		outputfile << similar_pairs[i].set_x << " " << similar_pairs[i].set_y << endl;
 	}
 }

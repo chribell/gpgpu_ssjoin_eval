@@ -110,22 +110,22 @@ void __gpuAssert(cudaError_t stat, int line, string file) {
 	}
 }
 
-float get_minoverlap_jaccard(int size_x1, int size_x2, float threshold) {
+float get_minoverlap_jaccard(int size_x1, int size_x2, double threshold) {
 	return (threshold*((float) size_x1 + size_x2)) / (1.0 + threshold);
 }
 
-float get_minsize_jaccard(int size, float threshold) {
+float get_minsize_jaccard(int size, double threshold) {
 	return threshold * ((float) size);
 }
 
-int get_midprefix(int size, float threshold) {
+int get_midprefix(int size, double threshold) {
 	return size - ceil(get_minoverlap_jaccard(size, size, threshold)) + 1;
 }
 
-int get_maxprefix(int size, float threshold) {
+int get_maxprefix(int size, double threshold) {
 	return size - ceil(get_minsize_jaccard(size, threshold)) + 1;
 }
 
-int max_size_jaccard(int size, float threshold) {
+int max_size_jaccard(int size, double threshold) {
 	return ceil(((float) size)/threshold);
 }

@@ -25,16 +25,16 @@
 #include "inverted_index.cuh"
 #include "device_timing.hxx"
 
-__host__ int findSimilars(InvertedIndex index, float threshold, struct DeviceVariables *dev_vars, Pair *similar_pairs,
+__host__ int findSimilars(InvertedIndex index, double threshold, struct DeviceVariables *dev_vars, Pair *similar_pairs,
 		int probes_start, int probe_block_size, int probes_offset,
 		int indexed_start, int indexed_block_size, int indexed_offset, int block_size, bool aggregate, DeviceTiming& deviceTiming);
 
 __global__ void generateCandidates(InvertedIndex index, int *intersection, Entry *probes, int *set_starts,
-		int *set_sizes, int probes_start, int probe_block_size, int probes_offset, int indexed_start, float threshold, int block_size);
+		int *set_sizes, int probes_start, int probe_block_size, int probes_offset, int indexed_start, double threshold, int block_size);
 
 __global__ void verifyCandidates(int *intersection, Pair *pairs, Entry *probes, Entry *indexed_sets,
 		int *sizes, int *starts, int probes_offset, int indexed_offset, int probes_start,
 		int indexed_start, int probe_block_size, int indexed_block_size, int intersection_size, int *totalSimilars,
-		float threshold, int block_size);
+		double threshold, int block_size);
 
 #endif /* KNN_CUH_ */

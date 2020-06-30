@@ -33,8 +33,9 @@
 #include "structs.cuh"
 #include "utils.cuh"
 #include "inverted_index.cuh"
+#include "similarity.hxx"
 
-__host__ int findSimilars(InvertedIndex index, float threshold, struct DeviceVariables *dev_vars, Pair *similar_pairs,
+__host__ int findSimilars(InvertedIndex index, double threshold, struct DeviceVariables *dev_vars, Pair *similar_pairs,
 		int probes_start, int probe_block_size, int probes_offset,
 		int indexed_start, int indexed_block_size, int indexed_offset, int block_size, bool aggregate, DeviceTiming& deviceTiming) {
 	dim3 grid, threads;
@@ -74,14 +75,14 @@ __host__ int findSimilars(InvertedIndex index, float threshold, struct DeviceVar
 }
 
 __global__ void generateCandidates(InvertedIndex index, int *intersection, Entry *probes, int *set_starts,
-		int *set_sizes, int probes_start, int probe_block_size, int probes_offset, int indexed_start, float threshold, int block_size) {
-	for (int i = blockIdx.x; i < probe_block_size; i += gridDim.x) { // percorre os probe sets
+		int *set_sizes, int probes_start, int probe_block_size, int probes_offset, int indexed_start, double threshold, int block_size) {
+	for (int i = blockIdx.x; i <= probe_block_size; i += gridDim.x) { // percorre os probe sets
 		int probe_id = i + probes_start; // setid_offset
 		int probe_start = set_starts[probe_id]; // offset da entrada
 		int probe_size = set_sizes[probe_id];
 
-		int maxsize = ceil(((float) probe_size)/threshold) + 1;
-		int maxprefix = probe_size - ceil(threshold * ((float) probe_size)) + 1;
+		unsigned int minsize = Jaccard::minsize(probe_size, threshold);
+		unsigned int maxprefix = Jaccard::maxprefix(probe_size, threshold);
 
 		for (int j = 0; j < maxprefix; j++) { // percorre os termos de cada set
 			int probe_entry = probes[probe_start + j].term_id;
@@ -92,7 +93,7 @@ __global__ void generateCandidates(InvertedIndex index, int *intersection, Entry
 			for (int k = list_start + threadIdx.x; k < list_end; k += blockDim.x) { // percorre a lista invertida
 				int idx_entry = index.d_inverted_index[k].set_id;
 
-				if (idx_entry > probe_id && set_sizes[idx_entry] < maxsize) {
+				if (probe_id > idx_entry && set_sizes[idx_entry] >= minsize) {
 					atomicAdd(&intersection[i*block_size + idx_entry - indexed_start], 1);
 				}
 			}
@@ -103,44 +104,66 @@ __global__ void generateCandidates(InvertedIndex index, int *intersection, Entry
 __global__ void verifyCandidates(int *intersection, Pair *pairs, Entry *probes, Entry *indexed_sets,
 		int *sizes, int *starts, int probes_offset, int indexed_offset, int probes_start,
 		int indexed_start, int probe_block_size, int indexed_block_size, int intersection_size, int *totalSimilars,
-		float threshold, int block_size) {
+		double threshold, int block_size) {
 
 	int i = blockIdx.x*blockDim.x + threadIdx.x;
 
 	for (; i < intersection_size; i += gridDim.x*blockDim.x) {
 		if (intersection[i]) {
-		int x = i/block_size + probes_start;
-		int y = i%block_size + indexed_start;
+            unsigned int x = i / block_size + probes_start;
+            unsigned int y = i % block_size + indexed_start;
 
-		Entry *set_x = probes + starts[x];
-		Entry *set_y = indexed_sets + starts[y];
+            Entry* probeSet = probes + starts[x];
+            Entry* indexedSet = indexed_sets + starts[y];
 
-		
-			float minoverlap = (threshold * ((float) (sizes[x] + sizes[y])) / (1 + threshold));
-			int overlap = intersection[i], m = 0, n = 0;
+            unsigned int probeSetSize = sizes[x];
+            unsigned int indexedSetSize = sizes[y];
 
-			int maxprefX = sizes[x] - ceil(threshold * ((float) sizes[x])) + 1;
-			int midprefY = sizes[y] - ceil(threshold * ((float) sizes[y] + sizes[y]) / (1.0 + threshold)) + 1;
+            unsigned int minoverlap = Jaccard::minoverlap(probeSetSize, indexedSetSize, threshold);
+            unsigned int overlap = intersection[i], m = 0, n = 0;
 
-			if (set_x[maxprefX].term_id < set_y[midprefY].term_id) {
-				m = maxprefX;
-			} else {
-				n = midprefY;
-			}
+            //First position after last position by index lookup in indexed record
+            unsigned int lastposind = Jaccard::midprefix(indexedSetSize, threshold);
 
-			while(m < sizes[x] && n < sizes[y] && sizes[x] + overlap - m >= minoverlap && sizes[y] + overlap - n >= minoverlap)	{
-				if (set_x[m].term_id == set_y[n].term_id) {
-					overlap++;
-					n++;
-					m++;
-				} else if (set_x[m].term_id > set_y[n].term_id) {
-					n++;
-				} else {
-					m++;
-				}
-				if (overlap >= minoverlap)
-					break;
-			}
+            //First position after last position by index lookup in probing record
+            unsigned int lastposprobe = Jaccard::maxprefix(probeSetSize, threshold);
+
+            unsigned int recpreftoklast = probeSet[lastposprobe - 1].term_id;
+            unsigned int indrecpreftoklast = indexedSet[lastposind - 1].term_id;
+
+            unsigned int recpos, indrecpos;
+
+            if(recpreftoklast > indrecpreftoklast) {
+                recpos = overlap;
+                //first position after minprefix / lastposind
+                indrecpos = lastposind;
+            } else {
+                // First position after maxprefix / lastposprobe
+                recpos = lastposprobe;
+                indrecpos = overlap;
+            }
+
+            unsigned int maxr1 = probeSetSize - recpos + overlap;
+            unsigned int maxr2 = indexedSetSize - indrecpos + overlap;
+
+            unsigned int steps = 0;
+
+            while(maxr1 >= minoverlap && maxr2 >= minoverlap && overlap < minoverlap) {
+                steps++;
+                if(probeSet[recpos].term_id == indexedSet[indrecpos].term_id) {
+                    ++recpos;
+                    ++indrecpos;
+                    ++overlap;
+                } else if (probeSet[recpos].term_id < indexedSet[indrecpos].term_id) {
+                    ++recpos;
+                    --maxr1;
+                } else {
+                    ++indrecpos;
+                    --maxr2;
+                }
+                if (overlap >= minoverlap)
+                    break;
+            }
 
 			if (overlap >= minoverlap) {
 				int pos = atomicAdd(totalSimilars, 1);
